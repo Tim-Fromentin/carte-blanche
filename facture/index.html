@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facture express</title>
+<meta name="description" content="Crée une facture propre en deux minutes, prête à imprimer ou à enregistrer en PDF. Tes informations restent dans ton navigateur.">
+<style>
+  :root {
+    --bg: #eef1f4; --card: #ffffff; --text: #18212b; --muted: #627080;
+    --border: #d9dfe6; --accent: #0f766e; --accent-ink: #ffffff; --ko: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10161c; --card: #18212b; --text: #e7edf3; --muted: #93a1b0;
+      --border: #2a3644; --accent: #2dd4bf; --accent-ink: #0b1f1d; --ko: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header.app {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    max-width: 1280px; margin: 0 auto; padding: 22px 16px 8px;
+  }
+  header.app h1 { margin: 0; font-size: 1.4rem; }
+  header.app p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    height: 38px; padding: 0 14px; font: inherit; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text);
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .layout {
+    display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 20px;
+    max-width: 1280px; margin: 0 auto; padding: 12px 16px 80px; align-items: start;
+  }
+  .form { display: grid; gap: 14px; }
+  fieldset {
+    margin: 0; padding: 14px 16px 16px; border: 1px solid var(--border);
+    border-radius: 12px; background: var(--card);
+  }
+  legend { font-weight: 700; padding: 0 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { display: block; font-size: .8rem; color: var(--muted); margin: 8px 0 3px; }
+  input, textarea, select {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--bg); color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .line { display: grid; grid-template-columns: 1fr 64px 92px 32px; gap: 6px; margin-top: 8px; align-items: center; }
+  .line input { padding: 7px 8px; }
+  .line .del { height: 32px; padding: 0; border: none; background: none; color: var(--muted); font-size: 1rem; }
+  .line .del:hover { color: var(--ko); }
+  .heads { display: grid; grid-template-columns: 1fr 64px 92px 32px; gap: 6px; font-size: .75rem; color: var(--muted); margin-top: 6px; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; color: var(--text); font-size: .9rem; }
+  .check input { width: auto; }
+  .hint { font-size: .8rem; color: var(--muted); margin: 8px 0 0; }
+
+  /* ---------- Aperçu A4 ---------- */
+  .preview-wrap { position: sticky; top: 12px; }
+  .invoice {
+    background: #fff; color: #1a1a1a; width: 100%; aspect-ratio: 210 / 297;
+    padding: 6% 7%; border-radius: 4px; box-shadow: 0 10px 40px -12px rgba(0, 0, 0, .3);
+    font: 11.5px/1.45 "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column;
+    overflow: hidden; container-type: inline-size;
+  }
+  .invoice .top { display: flex; justify-content: space-between; gap: 20px; }
+  .invoice h2 { font-size: 26px; letter-spacing: .04em; margin: 0 0 4px; color: #0f766e; }
+  .invoice .muted { color: #666; }
+  .invoice .block { white-space: pre-line; }
+  .invoice .from b, .invoice .to b { font-size: 13px; }
+  .invoice .to { margin-top: 28px; margin-left: auto; width: 45%; padding: 12px 14px; background: #f4f6f8; border-radius: 4px; }
+  .invoice .meta { margin-top: 22px; display: flex; gap: 28px; }
+  .invoice table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+  .invoice th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #666; border-bottom: 2px solid #0f766e; padding: 6px 4px; }
+  .invoice td { padding: 7px 4px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  .invoice .num { text-align: right; white-space: nowrap; }
+  .invoice .totals { margin-left: auto; width: 46%; margin-top: 14px; }
+  .invoice .totals div { display: flex; justify-content: space-between; padding: 4px 4px; }
+  .invoice .totals .grand { border-top: 2px solid #0f766e; margin-top: 4px; padding-top: 8px; font-weight: 700; font-size: 14px; }
+  .invoice .mention { margin-top: 10px; font-style: italic; }
+  .invoice .foot { margin-top: auto; padding-top: 18px; font-size: 9.5px; color: #666; white-space: pre-line; border-top: 1px solid #e5e7eb; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .preview-wrap { position: static; }
+    .invoice { font-size: 9px; }
+  }
+  @media print {
+    @page { size: A4; margin: 0; }
+    body { background: #fff; }
+    header.app, .form { display: none !important; }
+    .layout { display: block; padding: 0; max-width: none; }
+    .invoice { box-shadow: none; border-radius: 0; width: 210mm; height: 297mm; aspect-ratio: auto; padding: 16mm 15mm; font-size: 11pt; }
+  }
+</style>
+</head>
+<body>
+<header class="app">
+  <div>
+    <h1>🧾 Facture express</h1>
+    <p>Tout reste dans ton navigateur. Pour un PDF : « Imprimer », puis « Enregistrer au format PDF ».</p>
+  </div>
+  <div class="toolbar">
+    <button id="newInvoice">+ Nouvelle facture</button>
+    <button class="primary" id="print">Imprimer / PDF</button>
+  </div>
+</header>
+
+<div class="layout">
+  <form class="form" id="form" autocomplete="off">
+    <fieldset>
+      <legend>Toi</legend>
+      <label for="fromName">Nom ou entreprise</label>
+      <input id="fromName" data-key="fromName" placeholder="Camille Martin — Design">
+      <label for="fromAddress">Adresse</label>
+      <textarea id="fromAddress" data-key="fromAddress" placeholder="12 rue des Lilas&#10;69003 Lyon"></textarea>
+      <div class="grid2">
+        <div><label for="fromSiret">SIRET</label><input id="fromSiret" data-key="fromSiret"></div>
+        <div><label for="fromEmail">E-mail</label><input id="fromEmail" data-key="fromEmail" type="email"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Client</legend>
+      <label for="toName">Nom ou entreprise</label>
+      <input id="toName" data-key="toName">
+      <label for="toAddress">Adresse</label>
+      <textarea id="toAddress" data-key="toAddress"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Facture</legend>
+      <div class="grid2">
+        <div><label for="number">Numéro</label><input id="number" data-key="number"></div>
+        <div><label for="date">Date</label><input id="date" data-key="date" type="date"></div>
+      </div>
+      <div class="grid2">
+        <div><label for="due">Échéance</label><input id="due" data-key="due" type="date"></div>
+        <div>
+          <label for="vat">TVA</label>
+          <select id="vat" data-key="vat">
+            <option value="20">20 %</option>
+            <option value="10">10 %</option>
+            <option value="5.5">5,5 %</option>
+            <option value="0">0 %</option>
+          </select>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="franchise" data-key="franchise"> Franchise en base de TVA (micro-entreprise)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Prestations</legend>
+      <div class="heads"><span>Désignation</span><span>Qté</span><span>Prix HT</span><span></span></div>
+      <div id="lines"></div>
+      <button type="button" id="addLine" style="margin-top: 10px">+ Ajouter une ligne</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Conditions</legend>
+      <label for="iban">IBAN (facultatif)</label>
+      <input id="iban" data-key="iban">
+      <label for="terms">Conditions de paiement</label>
+      <textarea id="terms" data-key="terms" rows="4"></textarea>
+      <p class="hint">Les mentions obligatoires dépendent de ta situation (statut, client pro ou particulier). Vérifie-les avant d'envoyer.</p>
+    </fieldset>
+  </form>
+
+  <div class="preview-wrap">
+    <article class="invoice" id="invoice">
+      <div class="top">
+        <div class="from">
+          <b id="pFromName"></b>
+          <div class="block" id="pFromAddress"></div>
+          <div class="muted" id="pFromSiret"></div>
+          <div class="muted" id="pFromEmail"></div>
+        </div>
+        <div style="text-align: right">
+          <h2>FACTURE</h2>
+          <div class="muted">N° <span id="pNumber"></span></div>
+        </div>
+      </div>
+      <div class="to">
+        <div class="muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: .05em">Facturé à</div>
+        <b id="pToName"></b>
+        <div class="block" id="pToAddress"></div>
+      </div>
+      <div class="meta">
+        <div><div class="muted">Date</div><b id="pDate"></b></div>
+        <div><div class="muted">Échéance</div><b id="pDue"></b></div>
+      </div>
+      <table>
+        <thead><tr><th>Désignation</th><th class="num">Qté</th><th class="num">Prix unit. HT</th><th class="num">Total HT</th></tr></thead>
+        <tbody id="pLines"></tbody>
+      </table>
+      <div class="totals">
+        <div><span>Total HT</span><span id="pHT"></span></div>
+        <div id="pVatRow"><span id="pVatLabel"></span><span id="pVat"></span></div>
+        <div class="grand"><span>Total TTC</span><span id="pTTC"></span></div>
+      </div>
+      <div class="mention" id="pMention"></div>
+      <div class="foot" id="pFoot"></div>
+    </article>
+  </div>
+</div>
+
+<script src="../shared/badge.js" data-n="2" defer></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'facture-express';
+  const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  const FRANCHISE = 'TVA non applicable, art. 293 B du CGI';
+  const DEFAULT_TERMS = 'Paiement à 30 jours par virement.\n'
+    + 'En cas de retard : pénalités au taux de 3 fois le taux d’intérêt légal, '
+    + 'et indemnité forfaitaire de 40 € pour frais de recouvrement (clients professionnels).';
+
+  function isoDate(d) {
+    return d.toLocaleDateString('sv');
+  }
+
+  function plusDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return isoDate(d);
+  }
+
+  function blankInvoice(number) {
+    return {
+      number, date: isoDate(new Date()), due: plusDays(30),
+      toName: '', toAddress: '', lines: [{ desc: '', qty: 1, price: 0 }],
+    };
+  }
+
+  let state = {
+    fromName: '', fromAddress: '', fromSiret: '', fromEmail: '', iban: '',
+    vat: '20', franchise: false, terms: DEFAULT_TERMS,
+    ...blankInvoice(`F-${new Date().getFullYear()}-001`),
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved) state = { ...state, ...saved };
+  } catch { /* stockage indisponible */ }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* idem */ }
+  }
+
+  function nextNumber(number) {
+    // F-2026-007 → F-2026-008 ; on garde le nombre de chiffres
+    const m = /^(.*?)(\d+)$/.exec(number);
+    if (!m) return number + '-2';
+    return m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0');
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR');
+  }
+
+  // ---------- Formulaire ----------
+  function fillForm() {
+    document.querySelectorAll('[data-key]').forEach((input) => {
+      const value = state[input.dataset.key];
+      if (input.type === 'checkbox') input.checked = Boolean(value);
+      else input.value = value ?? '';
+    });
+    renderLines();
+  }
+
+  function renderLines() {
+    $('lines').replaceChildren(...state.lines.map((line, i) => {
+      const row = document.createElement('div');
+      row.className = 'line';
+      const desc = Object.assign(document.createElement('input'), { value: line.desc, placeholder: 'Prestation' });
+      const qty = Object.assign(document.createElement('input'), { value: line.qty, type: 'number', min: 0, step: 'any' });
+      const price = Object.assign(document.createElement('input'), { value: line.price, type: 'number', min: 0, step: '0.01' });
+      desc.addEventListener('input', () => { line.desc = desc.value; update(); });
+      qty.addEventListener('input', () => { line.qty = Number(qty.value) || 0; update(); });
+      price.addEventListener('input', () => { line.price = Number(price.value) || 0; update(); });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'del';
+      del.textContent = '✕';
+      del.setAttribute('aria-label', 'Supprimer la ligne');
+      del.addEventListener('click', () => {
+        state.lines.splice(i, 1);
+        if (!state.lines.length) state.lines.push({ desc: '', qty: 1, price: 0 });
+        renderLines();
+        update();
+      });
+      row.append(desc, qty, price, del);
+      return row;
+    }));
+  }
+
+  // ---------- Aperçu ----------
+  function update() {
+    const set = (id, text) => { $(id).textContent = text; };
+    set('pFromName', state.fromName || 'Ton nom');
+    set('pFromAddress', state.fromAddress);
+    set('pFromSiret', state.fromSiret ? `SIRET ${state.fromSiret}` : '');
+    set('pFromEmail', state.fromEmail);
+    set('pToName', state.toName || 'Nom du client');
+    set('pToAddress', state.toAddress);
+    set('pNumber', state.number);
+    set('pDate', formatDate(state.date));
+    set('pDue', formatDate(state.due));
+
+    let ht = 0;
+    $('pLines').replaceChildren(...state.lines.filter((l) => l.desc || l.price).map((l) => {
+      const total = Math.round(l.qty * l.price * 100) / 100;
+      ht += total;
+      const tr = document.createElement('tr');
+      for (const [text, cls] of [[l.desc, ''], [String(l.qty).replace('.', ','), 'num'], [euro.format(l.price), 'num'], [euro.format(total), 'num']]) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        td.className = cls;
+        tr.append(td);
+      }
+      return tr;
+    }));
+
+    const rate = state.franchise ? 0 : Number(state.vat);
+    const vat = Math.round(ht * rate) / 100;
+    set('pHT', euro.format(ht));
+    set('pVatLabel', `TVA ${String(rate).replace('.', ',')} %`);
+    set('pVat', euro.format(vat));
+    $('pVatRow').hidden = state.franchise;
+    set('pTTC', euro.format(ht + vat));
+    set('pMention', state.franchise ? FRANCHISE : '');
+    set('pFoot', [state.terms, state.iban ? `IBAN : ${state.iban}` : ''].filter(Boolean).join('\n'));
+
+    $('vat').disabled = state.franchise;
+    document.title = `Facture ${state.number}${state.toName ? ' — ' + state.toName : ''}`;
+    save();
+  }
+
+  // ---------- Événements ----------
+  $('form').addEventListener('input', (e) => {
+    const key = e.target.dataset.key;
+    if (!key) return;
+    state[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    update();
+  });
+  $('addLine').addEventListener('click', () => {
+    state.lines.push({ desc: '', qty: 1, price: 0 });
+    renderLines();
+    $('lines').lastElementChild.querySelector('input').focus();
+  });
+  $('newInvoice').addEventListener('click', () => {
+    if (!confirm('Créer une nouvelle facture ? Tes infos sont gardées, le client et les lignes sont vidés.')) return;
+    Object.assign(state, blankInvoice(nextNumber(state.number)));
+    fillForm();
+    update();
+  });
+  $('print').addEventListener('click', () => window.print());
+
+  fillForm();
+  update();
+</script>
+</body>
+</html>

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le compte du jour</title>
+<meta name="description" content="Six nombres, une cible, quatre opérations. Une nouvelle partie chaque jour, la même pour tout le monde.">
+<style>
+  :root {
+    --bg: #10233f; --panel: #17305a; --tile: #f4c430; --tile-ink: #10233f;
+    --text: #f4f1e8; --muted: #a9b6cc; --accent: #f4c430; --ok: #4ade80; --ko: #f87171;
+    --used: #2a4270;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; min-height: 100vh; background: radial-gradient(ellipse at top, #1d3d6e, var(--bg) 60%);
+    color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; padding: 28px 16px 80px; text-align: center; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: .02em; }
+  .sub { color: var(--muted); margin: 2px 0 20px; font-size: .9rem; }
+  .target {
+    display: inline-block; font: 800 3.6rem/1 ui-monospace, Consolas, monospace;
+    padding: 14px 28px; border-radius: 14px; background: #0a1a30; color: var(--accent);
+    letter-spacing: .08em; box-shadow: inset 0 0 0 2px #2a4270;
+  }
+  .label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 16px 0 8px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tile {
+    height: 64px; border: none; border-radius: 12px; cursor: pointer;
+    font: 800 1.6rem ui-monospace, Consolas, monospace;
+    background: var(--tile); color: var(--tile-ink); box-shadow: 0 4px 0 #b88f10;
+    transition: transform .08s;
+  }
+  .tile:active { transform: translateY(2px); box-shadow: 0 2px 0 #b88f10; }
+  .tile.selected { outline: 3px solid #fff; outline-offset: 2px; }
+  .tile.created { background: #fde68a; }
+  .tile.used { visibility: hidden; }
+  .tile.win { background: var(--ok); box-shadow: 0 4px 0 #15803d; }
+  .ops { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+  .op {
+    height: 56px; border: none; border-radius: 12px; cursor: pointer;
+    font: 700 1.6rem system-ui, sans-serif; background: var(--panel); color: var(--text);
+    box-shadow: inset 0 0 0 2px #2a4270;
+  }
+  .op.selected { background: var(--accent); color: var(--tile-ink); }
+  .actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .btn {
+    height: 42px; padding: 0 16px; border-radius: 10px; cursor: pointer; font: 600 .95rem system-ui, sans-serif;
+    border: 1px solid #2a4270; background: transparent; color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: var(--tile-ink); border-color: var(--accent); }
+  .history {
+    list-style: none; padding: 0; margin: 18px auto 0; max-width: 300px; text-align: left;
+    font: 500 1rem ui-monospace, Consolas, monospace; color: var(--muted);
+  }
+  .history li { padding: 4px 0; border-bottom: 1px dashed #2a4270; }
+  .message { min-height: 1.6em; margin-top: 12px; font-weight: 600; }
+  .message.ko { color: var(--ko); }
+  .result {
+    margin-top: 20px; padding: 20px; border-radius: 14px; background: var(--panel);
+    box-shadow: inset 0 0 0 2px #2a4270;
+  }
+  .result h2 { margin: 0 0 6px; font-size: 1.4rem; }
+  .result p { margin: 4px 0; color: var(--muted); }
+  .result .solution { font: 500 .95rem ui-monospace, Consolas, monospace; color: var(--text); margin-top: 10px; white-space: pre-line; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 0; }
+  .stats b { display: block; font-size: 1.5rem; color: var(--text); }
+  .stats span { font-size: .75rem; color: var(--muted); }
+  details.rules { margin-top: 24px; text-align: left; color: var(--muted); font-size: .92rem; }
+  details.rules summary { cursor: pointer; color: var(--text); }
+  @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .shake { animation: shake .25s; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Le compte du jour</h1>
+  <p class="sub" id="sub"></p>
+
+  <div class="target" id="target">···</div>
+
+  <div class="label">Tes nombres</div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="ops" id="ops">
+    <button class="op" data-op="+">+</button>
+    <button class="op" data-op="−">−</button>
+    <button class="op" data-op="×">×</button>
+    <button class="op" data-op="÷">÷</button>
+  </div>
+
+  <div class="actions" id="actions">
+    <button class="btn" id="undo">↶ Annuler</button>
+    <button class="btn" id="restart">Recommencer</button>
+    <button class="btn primary" id="stop">J'arrête ici</button>
+  </div>
+
+  <div class="message" id="message"></div>
+  <ol class="history" id="history"></ol>
+
+  <div class="result" id="result" hidden></div>
+
+  <details class="rules">
+    <summary>Comment jouer ?</summary>
+    <p>Atteins le nombre cible en combinant les six nombres avec + − × ÷. Clique un nombre, une opération, puis un second nombre : ils sont remplacés par le résultat.</p>
+    <p>Chaque nombre ne sert qu'une fois, et tu n'es pas obligé de tous les utiliser. Les résultats doivent rester des entiers positifs. Si tu ne trouves pas le compte exact, approche-toi le plus possible et clique « J'arrête ici ».</p>
+    <p>La partie est la même pour tout le monde et change chaque jour à minuit.</p>
+  </details>
+</main>
+
+<script src="../shared/badge.js" data-n="1" defer></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const LAUNCH = '2026-10-13';
+  const STORAGE_KEY = 'compte-du-jour';
+  const URL_SITE = 'https://tim-fromentin.github.io/carte-blanche/compte/';
+
+  // ---------- Grille du jour (déterministe) ----------
+  function todayKey() {
+    return new Date().toLocaleDateString('sv'); // AAAA-MM-JJ, heure locale
+  }
+
+  function dayNumber(key) {
+    return Math.round((new Date(key + 'T12:00:00') - new Date(LAUNCH + 'T12:00:00')) / 86400000) + 1;
+  }
+
+  function seedFrom(text) {
+    let h = 1779033703 ^ text.length;
+    for (let i = 0; i < text.length; i++) {
+      h = Math.imul(h ^ text.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(a) {
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // La cible est fabriquée à partir d'un calcul aléatoire sur les six nombres :
+  // une solution existe donc toujours, sans avoir à la chercher.
+  function puzzleFor(key) {
+    const rand = mulberry32(seedFrom(key));
+    const pick = (n) => Math.floor(rand() * n);
+    for (;;) {
+      const pool = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 25, 50, 75, 100];
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = pick(i + 1);
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const numbers = pool.slice(0, 6);
+      let list = [...numbers];
+      const steps = [];
+      const count = 3 + pick(3); // 3 à 5 opérations
+      for (let s = 0; s < count; s++) {
+        // Le plus souvent, on repart du dernier résultat pour obtenir une vraie chaîne de calcul
+        const i = s > 0 && rand() < 0.75 ? list.length - 1 : pick(list.length);
+        let j = pick(list.length - 1);
+        if (j >= i) j++;
+        const a = Math.max(list[i], list[j]), b = Math.min(list[i], list[j]);
+        const ops = ['+'];
+        if (b > 1) ops.push('×', '×');
+        if (a !== b) ops.push('−');
+        if (b > 1 && a % b === 0) ops.push('÷');
+        const op = ops[pick(ops.length)];
+        const r = { '+': a + b, '×': a * b, '−': a - b, '÷': a / b }[op];
+        list = list.filter((_, k) => k !== i && k !== j);
+        list.push(r);
+        steps.push(`${a} ${op} ${b} = ${r}`);
+      }
+      const target = list[list.length - 1];
+      if (target >= 101 && target <= 999 && !numbers.includes(target)) {
+        return { numbers, target, solution: steps };
+      }
+    }
+  }
+
+  // ---------- Partie ----------
+  const key = todayKey();
+  const puzzle = puzzleFor(key);
+  let tiles, history, selected, operator, finished;
+
+  function newGame() {
+    tiles = puzzle.numbers.map((value, id) => ({ id, value, used: false, created: false }));
+    history = [];
+    selected = null;
+    operator = null;
+    finished = false;
+  }
+
+  function apply(a, op, b) {
+    if (op === '+') return a + b;
+    if (op === '×') return a * b;
+    if (op === '−') return a - b > 0 ? a - b : null;
+    if (op === '÷') return b !== 0 && a % b === 0 ? a / b : null;
+  }
+
+  function flash(text, bad = false) {
+    $('message').textContent = text;
+    $('message').className = 'message' + (bad ? ' ko' : '');
+  }
+
+  function clickTile(tile) {
+    if (finished || tile.used) return;
+    if (selected === null || operator === null) {
+      selected = selected === tile.id ? null : tile.id;
+      render();
+      return;
+    }
+    if (tile.id === selected) return;
+    const first = tiles[selected];
+    const value = apply(first.value, operator, tile.value);
+    if (value === null) {
+      flash(operator === '−' ? 'Le résultat doit être positif.' : 'La division doit tomber juste.', true);
+      $('tiles').classList.remove('shake');
+      void $('tiles').offsetWidth;
+      $('tiles').classList.add('shake');
+      return;
+    }
+    first.used = true;
+    tile.used = true;
+    const created = { id: tiles.length, value, used: false, created: true };
+    tiles.push(created);
+    history.push({ text: `${first.value} ${operator} ${tile.value} = ${value}`, ids: [first.id, tile.id] });
+    selected = created.id;
+    operator = null;
+    flash('');
+    if (value === puzzle.target) finish(0);
+    render();
+  }
+
+  function undo() {
+    if (finished || !history.length) return;
+    const last = history.pop();
+    tiles.pop();
+    for (const id of last.ids) tiles[id].used = false;
+    selected = null;
+    operator = null;
+    flash('');
+    render();
+  }
+
+  function closestDiff() {
+    return Math.min(...tiles.filter((t) => !t.used).map((t) => Math.abs(t.value - puzzle.target)));
+  }
+
+  function finish(diff) {
+    finished = true;
+    const save = loadSave();
+    if (!save.days[key]) {
+      save.days[key] = { diff, ops: history.length };
+      save.streak = diff === 0 && save.lastWin === previousDay(key) ? save.streak + 1 : diff === 0 ? 1 : 0;
+      if (diff === 0) save.lastWin = key;
+      saveGame(save);
+    }
+    render();
+  }
+
+  // ---------- Sauvegarde ----------
+  function loadSave() {
+    try {
+      return { days: {}, streak: 0, lastWin: null, ...JSON.parse(localStorage.getItem(STORAGE_KEY)) };
+    } catch {
+      return { days: {}, streak: 0, lastWin: null };
+    }
+  }
+
+  function saveGame(save) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch { /* stockage indisponible */ }
+  }
+
+  function previousDay(k) {
+    const d = new Date(k + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('sv');
+  }
+
+  // ---------- Affichage ----------
+  function render() {
+    $('target').textContent = puzzle.target;
+    $('tiles').replaceChildren(...tiles.filter((t) => !t.used || !t.created).map((t) => {
+      const b = document.createElement('button');
+      b.className = 'tile' + (t.used ? ' used' : '') + (t.created ? ' created' : '')
+        + (t.id === selected ? ' selected' : '') + (!t.used && t.value === puzzle.target ? ' win' : '');
+      b.textContent = t.value;
+      b.disabled = t.used || finished;
+      b.addEventListener('click', () => clickTile(t));
+      return b;
+    }));
+    document.querySelectorAll('.op').forEach((b) => {
+      b.classList.toggle('selected', b.dataset.op === operator);
+      b.disabled = finished;
+    });
+    $('history').replaceChildren(...history.map((h) => {
+      const li = document.createElement('li');
+      li.textContent = h.text;
+      return li;
+    }));
+    $('actions').hidden = finished;
+    renderResult();
+  }
+
+  function shareText(entry) {
+    const result = entry.diff === 0
+      ? `🎯 Compte exact en ${entry.ops} opération${entry.ops > 1 ? 's' : ''}`
+      : `📏 À ${entry.diff} du compte`;
+    return `Le compte du jour n°${dayNumber(key)}\n${result}\n${URL_SITE}`;
+  }
+
+  function renderResult() {
+    const save = loadSave();
+    const entry = save.days[key];
+    $('result').hidden = !entry;
+    if (!entry) return;
+    const played = Object.values(save.days);
+    const wins = played.filter((d) => d.diff === 0).length;
+
+    const box = $('result');
+    box.replaceChildren();
+    const title = document.createElement('h2');
+    title.textContent = entry.diff === 0 ? '🎯 Le compte est bon !' : `📏 À ${entry.diff} près`;
+    const detail = document.createElement('p');
+    detail.textContent = entry.diff === 0
+      ? `Trouvé en ${entry.ops} opération${entry.ops > 1 ? 's' : ''}.`
+      : 'Pas mal ! Le compte exact était possible :';
+    const stats = document.createElement('div');
+    stats.className = 'stats';
+    for (const [value, label] of [[played.length, 'parties'], [wins, 'comptes exacts'], [save.streak, 'série en cours']]) {
+      const cell = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = value;
+      const s = document.createElement('span');
+      s.textContent = label;
+      cell.append(b, s);
+      stats.append(cell);
+    }
+    const solution = document.createElement('div');
+    solution.className = 'solution';
+    solution.textContent = entry.diff === 0 ? '' : puzzle.solution.join('\n');
+
+    const share = document.createElement('button');
+    share.className = 'btn primary';
+    share.textContent = 'Partager mon résultat';
+    share.addEventListener('click', async () => {
+      const text = shareText(entry);
+      try {
+        if (navigator.share) await navigator.share({ text });
+        else {
+          await navigator.clipboard.writeText(text);
+          share.textContent = 'Copié ✓';
+        }
+      } catch { /* partage annulé */ }
+    });
+    const next = document.createElement('p');
+    next.id = 'countdown';
+
+    box.append(title, detail, solution, stats, share, next);
+    updateCountdown();
+  }
+
+  function updateCountdown() {
+    const node = $('countdown');
+    if (!node) return;
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const s = Math.max(0, Math.floor((midnight - Date.now()) / 1000));
+    node.textContent = `Prochaine partie dans ${Math.floor(s / 3600)} h ${String(Math.floor(s / 60) % 60).padStart(2, '0')} min`;
+  }
+
+  // ---------- Événements ----------
+  document.querySelectorAll('.op').forEach((b) => b.addEventListener('click', () => {
+    if (finished || selected === null) {
+      flash('Choisis d’abord un nombre.', true);
+      return;
+    }
+    operator = operator === b.dataset.op ? null : b.dataset.op;
+    render();
+  }));
+  $('undo').addEventListener('click', undo);
+  $('restart').addEventListener('click', () => { if (!finished) { newGame(); flash(''); render(); } });
+  $('stop').addEventListener('click', () => { if (!finished) finish(closestDiff()); });
+  setInterval(updateCountdown, 30000);
+
+  $('sub').textContent = `Partie n°${dayNumber(key)} · ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+  newGame();
+  if (loadSave().days[key]) finished = true;
+  render();
+</script>
+</body>
+</html>
