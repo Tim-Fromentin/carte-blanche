@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frappe — test de vitesse de frappe en français</title>
+<meta name="description" content="Combien de mots par minute tapes-tu en français, accents compris ? 30 ou 60 secondes pour le savoir.">
+<style>
+  :root {
+    --bg: #fdfcf7; --text: #2b2a26; --muted: #a8a496; --ok: #2b2a26; --ko: #dc2626;
+    --accent: #0891b2; --card: #ffffff; --border: #ebe8dd; --current: #e0f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a; --text: #e8e6e1; --muted: #5d5f63; --ok: #e8e6e1; --ko: #f87171;
+      --accent: #22d3ee; --card: #1f2023; --border: #2c2e32; --current: #12343b;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 820px; margin: 0 auto; padding: 48px 16px 96px; }
+  .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  h1 { margin: 0; font-size: 1.6rem; }
+  h1 span { color: var(--accent); }
+  .settings { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: .9rem; color: var(--muted); }
+  .settings button {
+    height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; font: inherit;
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+  }
+  .settings button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); }
+  .settings label { display: flex; gap: 6px; align-items: center; margin-left: 8px; cursor: pointer; }
+  .timer { font: 700 2.4rem ui-monospace, Consolas, monospace; color: var(--accent); min-height: 3rem; }
+  .words {
+    position: relative; height: 7.8rem; overflow: hidden; cursor: text;
+    font: 400 1.65rem/2.6rem ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--muted);
+    user-select: none;
+  }
+  .words.blur #list { filter: blur(4px); opacity: .6; }
+  .word { display: inline-block; margin-right: .6em; border-radius: 4px; }
+  .word.done-ok { color: var(--ok); }
+  .word.done-ko { color: var(--ko); text-decoration: underline wavy; text-underline-offset: 6px; }
+  .word.current { color: var(--text); background: var(--current); }
+  .word .ko { color: var(--ko); }
+  .word .ok { color: var(--accent); }
+  .focus-hint {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font: 600 1rem system-ui, sans-serif; color: var(--text); pointer-events: none;
+  }
+  #input { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .bar { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; color: var(--muted); font-size: .9rem; flex-wrap: wrap; }
+  .bar button { border: none; background: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; }
+  .result { margin-top: 32px; padding: 28px; border-radius: 16px; background: var(--card); border: 1px solid var(--border); }
+  .big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .big b { display: block; font: 700 2.6rem ui-monospace, Consolas, monospace; color: var(--accent); line-height: 1.1; }
+  .big span { color: var(--muted); font-size: .85rem; }
+  .verdict { font-size: 1.1rem; margin: 20px 0 0; }
+  .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+  .btn {
+    height: 42px; padding: 0 18px; border-radius: 10px; cursor: pointer; font: 600 .95rem system-ui, sans-serif;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .best { color: var(--muted); font-size: .9rem; margin-top: 12px; }
+  @media (max-width: 560px) {
+    .words { font-size: 1.2rem; line-height: 2rem; height: 6rem; }
+    .big b { font-size: 1.9rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Frappe<span>.</span></h1>
+    <div class="settings">
+      <button data-time="30" aria-pressed="true">30 s</button>
+      <button data-time="60" aria-pressed="false">60 s</button>
+      <label><input type="checkbox" id="accents"> ignorer les accents</label>
+    </div>
+  </div>
+
+  <div class="timer" id="timer"></div>
+  <div class="words" id="words" aria-label="Texte à taper">
+    <div id="list"></div>
+    <div class="focus-hint" id="hint">Clique ici et commence à taper</div>
+  </div>
+  <input id="input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Zone de frappe">
+  <div class="bar">
+    <span>Espace = mot suivant · Échap = recommencer</span>
+    <button id="restart">↻ Nouveau texte</button>
+  </div>
+
+  <section class="result" id="result" hidden>
+    <div class="big">
+      <div><b id="wpm"></b><span>mots par minute</span></div>
+      <div><b id="accuracy"></b><span>précision</span></div>
+      <div><b id="chars"></b><span>caractères justes</span></div>
+    </div>
+    <p class="verdict" id="verdict"></p>
+    <div class="actions">
+      <button class="btn primary" id="again">Rejouer</button>
+      <button class="btn" id="share">Partager mon score</button>
+    </div>
+    <p class="best" id="best"></p>
+  </section>
+</main>
+
+<script src="../shared/badge.js" data-n="5" defer></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'frappe';
+  const WORDS = ('le la les un une des de du et à au aux en dans sur sous avec pour par sans chez vers entre '
+    + 'je tu il elle on nous vous ils elles ce cette ces mon ton son notre votre leur qui que quoi dont où '
+    + 'être avoir faire dire aller voir savoir pouvoir vouloir venir devoir prendre trouver donner parler '
+    + 'mettre passer penser aimer croire laisser regarder répondre rester partir sortir vivre écrire lire '
+    + 'temps vie jour année monde homme femme enfant main tête œil maison ville pays travail ami famille '
+    + 'eau feu terre ciel mer soleil lune nuit matin soir semaine heure minute porte fenêtre route chemin '
+    + 'livre lettre mot nom idée question réponse histoire musique chanson film image couleur forme '
+    + 'grand petit bon mauvais beau nouveau vieux jeune long court haut bas plein vide simple facile '
+    + 'rapide lent fort doux chaud froid clair sombre vrai faux même autre seul premier dernier prochain '
+    + 'très trop peu beaucoup encore toujours jamais souvent déjà bientôt ici là maintenant hier demain '
+    + 'café pain fromage pomme jardin fleur arbre forêt montagne rivière plage nuage pluie neige vent '
+    + 'école élève leçon cahier crayon bureau table chaise lampe téléphone écran clavier '
+    + 'été hiver printemps automne fête cadeau voyage train avion vélo voiture gare marché prix '
+    + 'pourquoi comment parce alors donc mais car ou ni si quand comme puis enfin ensuite aussi ainsi').split(' ');
+
+  let duration = 30;
+  let words = [], index = 0, typed = [], startedAt = null, timerId = null, finished = false;
+
+  function normalize(text) {
+    if (!$('accents').checked) return text;
+    return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe');
+  }
+
+  function pickWords(count) {
+    const out = [];
+    while (out.length < count) {
+      const w = WORDS[Math.floor(Math.random() * WORDS.length)];
+      if (w !== out[out.length - 1]) out.push(w);
+    }
+    return out;
+  }
+
+  // ---------- Partie ----------
+  function reset() {
+    clearInterval(timerId);
+    words = pickWords(250);
+    index = 0;
+    typed = [];
+    startedAt = null;
+    finished = false;
+    $('input').value = '';
+    $('timer').textContent = duration;
+    $('result').hidden = true;
+    renderWords();
+    focusInput();
+  }
+
+  function focusInput() {
+    $('input').focus({ preventScroll: true });
+    updateHint();
+  }
+
+  function updateHint() {
+    const focused = document.activeElement === $('input');
+    $('hint').hidden = focused || finished;
+    $('words').classList.toggle('blur', !focused && !finished);
+  }
+
+  function tick() {
+    const left = Math.max(0, duration - (Date.now() - startedAt) / 1000);
+    $('timer').textContent = Math.ceil(left);
+    if (left <= 0) finish();
+  }
+
+  function onInput() {
+    if (finished) return;
+    const value = $('input').value;
+    if (!startedAt && value.trim()) {
+      startedAt = Date.now();
+      timerId = setInterval(tick, 100);
+    }
+    if (value.endsWith(' ')) {
+      const attempt = value.trim();
+      if (attempt) {
+        typed[index] = attempt;
+        index++;
+      }
+      $('input').value = '';
+    }
+    renderCurrent();
+  }
+
+  // Mots par minute : convention de 5 caractères par mot, en ne comptant que les mots justes
+  function stats() {
+    const elapsed = Math.min(duration, (Date.now() - startedAt) / 1000) || duration;
+    let correctChars = 0, correctWords = 0;
+    typed.forEach((t, i) => {
+      if (normalize(t) === normalize(words[i])) {
+        correctWords++;
+        correctChars += words[i].length + 1; // +1 pour l'espace
+      }
+    });
+    const partial = $('input').value;
+    if (partial && normalize(words[index]).startsWith(normalize(partial))) correctChars += partial.length;
+    return {
+      wpm: Math.round((correctChars / 5) / (elapsed / 60)),
+      accuracy: typed.length ? Math.round((correctWords / typed.length) * 100) : 0,
+      correctChars,
+    };
+  }
+
+  function finish() {
+    clearInterval(timerId);
+    finished = true;
+    const s = stats();
+    $('input').blur();
+    $('wpm').textContent = s.wpm;
+    $('accuracy').textContent = s.accuracy + ' %';
+    $('chars').textContent = s.correctChars;
+    $('verdict').textContent = s.wpm >= 70 ? 'Impressionnant. Peu de gens tapent aussi vite.'
+      : s.wpm >= 50 ? 'Très bon niveau, nettement au-dessus de la moyenne.'
+      : s.wpm >= 35 ? 'Bonne vitesse !'
+      : s.wpm >= 20 ? 'Correct ! La régularité viendra avec la pratique.'
+      : 'C\'est un début. Essaie de garder les yeux sur l\'écran plutôt que sur le clavier.';
+
+    let save = { best: {} };
+    try { save = { best: {}, ...JSON.parse(localStorage.getItem(STORAGE_KEY)) }; } catch { /* rien d'enregistré */ }
+    const previous = save.best[duration] || 0;
+    if (s.wpm > previous) {
+      save.best[duration] = s.wpm;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(save)); } catch { /* stockage indisponible */ }
+    }
+    $('best').textContent = s.wpm > previous && previous
+      ? `Nouveau record sur ${duration} s ! (ancien : ${previous} mots/min)`
+      : `Ton record sur ${duration} s : ${Math.max(previous, s.wpm)} mots/min`;
+    $('result').dataset.wpm = s.wpm;
+    $('result').dataset.accuracy = s.accuracy;
+    $('result').hidden = false;
+    renderWords();
+    updateHint();
+  }
+
+  // ---------- Affichage ----------
+  function wordClass(i) {
+    return 'word ' + (normalize(typed[i]) === normalize(words[i]) ? 'done-ok' : 'done-ko');
+  }
+
+  function renderWords() {
+    $('list').replaceChildren(...words.map((w, i) => {
+      const span = document.createElement('span');
+      span.className = i < index ? wordClass(i) : 'word';
+      span.textContent = w;
+      return span;
+    }));
+    renderCurrent();
+  }
+
+  function renderCurrent() {
+    const list = $('list').children;
+    if (index > 0 && list[index - 1]) {
+      list[index - 1].className = wordClass(index - 1);
+      list[index - 1].textContent = words[index - 1];
+    }
+    const node = list[index];
+    if (!node || finished) return;
+    node.className = 'word current';
+    const target = [...words[index]], value = [...$('input').value];
+    node.replaceChildren(...Array.from({ length: Math.max(target.length, value.length) }, (_, k) => {
+      const span = document.createElement('span');
+      if (k < value.length) {
+        span.className = k < target.length && normalize(value[k]) === normalize(target[k]) ? 'ok' : 'ko';
+        span.textContent = k < target.length ? target[k] : value[k];
+      } else {
+        span.textContent = target[k];
+      }
+      return span;
+    }));
+    // Garde le mot en cours sur la deuxième ligne visible
+    $('words').scrollTop = Math.max(0, node.offsetTop - node.offsetHeight);
+  }
+
+  // ---------- Événements ----------
+  $('input').addEventListener('input', onInput);
+  $('input').addEventListener('keydown', (e) => { if (e.key === 'Escape') reset(); });
+  $('input').addEventListener('focus', updateHint);
+  $('input').addEventListener('blur', updateHint);
+  $('words').addEventListener('click', () => { if (!finished) focusInput(); });
+  $('restart').addEventListener('click', reset);
+  $('again').addEventListener('click', reset);
+  $('accents').addEventListener('change', () => { if (!startedAt) renderWords(); focusInput(); });
+  document.querySelectorAll('[data-time]').forEach((b) => b.addEventListener('click', () => {
+    duration = Number(b.dataset.time);
+    document.querySelectorAll('[data-time]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+    reset();
+  }));
+  $('share').addEventListener('click', async () => {
+    const text = `⌨️ ${$('result').dataset.wpm} mots/min en français (${$('result').dataset.accuracy} % de précision) sur Frappe. Tu fais mieux ?\nhttps://tim-fromentin.github.io/carte-blanche/frappe/`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else {
+        await navigator.clipboard.writeText(text);
+        $('share').textContent = 'Copié ✓';
+      }
+    } catch { /* partage annulé */ }
+  });
+
+  reset();
+</script>
+</body>
+</html>
