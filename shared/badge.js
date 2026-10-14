@@ -22,4 +22,11 @@
   link.href = '../';
   link.textContent = number ? `✦ Carte blanche · N°${number}` : '✦ Carte blanche';
   document.body.append(link);
+
+  // Compteur de visites anonyme (GoatCounter : sans cookie, aucune donnée personnelle)
+  const counter = document.createElement('script');
+  counter.async = true;
+  counter.src = 'https://gc.zgo.at/count.js';
+  counter.dataset.goatcounter = 'https://micro-outils.goatcounter.com/count';
+  document.head.append(counter);
 })();
