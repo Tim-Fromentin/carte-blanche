@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frise — le jeu de chronologie du jour</title>
+<meta name="description" content="Sept événements historiques à replacer sur une frise, sans connaître leur date. Une partie par jour, la même pour tout le monde.">
+<style>
+  :root {
+    --bg: #faf6ef; --card: #ffffff; --text: #2a241c; --muted: #8a8174; --border: #e8dfd0;
+    --accent: #b45309; --accent-soft: #fdf0dc; --ok: #15803d; --ok-soft: #e3f3e8; --ko: #b91c1c; --ko-soft: #fbe5e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f; --card: #211d17; --text: #efe8dc; --muted: #9c9283; --border: #383126;
+      --accent: #f59e0b; --accent-soft: #33260f; --ok: #4ade80; --ok-soft: #15291b; --ko: #f87171; --ko-soft: #361a1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 36px 16px 96px; }
+  h1 { margin: 0; font-size: 1.7rem; }
+  .lead { margin: 4px 0 18px; color: var(--muted); }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .modes { display: flex; gap: 6px; }
+  .modes button, .btn {
+    height: 36px; padding: 0 12px; border-radius: 8px; cursor: pointer; font: inherit; font-size: .92rem;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .modes button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .modes button[aria-pressed=true], .btn.primary { color: #1c1307; } }
+  .score { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .current {
+    position: sticky; top: 8px; z-index: 2; margin-bottom: 18px; padding: 16px; border-radius: 14px;
+    background: var(--accent-soft); border: 2px solid var(--accent); box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  }
+  .current small { display: block; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+  .current p { margin: 4px 0 0; font-size: 1.1rem; font-weight: 600; }
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .card {
+    display: flex; gap: 14px; align-items: baseline; padding: 12px 14px; border-radius: 12px;
+    background: var(--card); border: 1px solid var(--border);
+  }
+  .card .year { flex: 0 0 auto; min-width: 5.2em; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .card .txt { min-width: 0; overflow-wrap: anywhere; }
+  .card.ok { background: var(--ok-soft); border-color: var(--ok); }
+  .card.ko { background: var(--ko-soft); border-color: var(--ko); }
+  .card.ok .year { color: var(--ok); } .card.ko .year { color: var(--ko); }
+  .card.fresh { animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: scale(.96); opacity: .4; } to { transform: none; opacity: 1; } }
+  .slot {
+    display: block; width: 100%; height: 34px; margin: 6px 0; border-radius: 10px; cursor: pointer;
+    border: 2px dashed var(--border); background: transparent; color: var(--muted); font: inherit; font-size: .88rem;
+  }
+  .slot:hover, .slot:focus-visible { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); outline: none; }
+  .gap { height: 8px; }
+  .end { margin-top: 20px; padding: 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); text-align: center; }
+  .end h2 { margin: 0 0 4px; font-size: 1.3rem; }
+  .end .squares { font-size: 1.4rem; letter-spacing: 2px; margin: 8px 0 14px; }
+  .end .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .end p { margin: 0; color: var(--muted); }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 28px; }
+  @media (prefers-reduced-motion: reduce) { .card.fresh { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🗓️ Frise</h1>
+  <p class="lead">Replace chaque événement au bon endroit sur la frise. Pas besoin de connaître la date exacte : seulement l'ordre.</p>
+
+  <div class="bar">
+    <div class="modes">
+      <button id="mode-day" aria-pressed="true">Partie du jour</button>
+      <button id="mode-free" aria-pressed="false">Partie libre</button>
+    </div>
+    <span class="score" id="score"></span>
+  </div>
+
+  <div class="current" id="current">
+    <small id="current-label">À placer</small>
+    <p id="current-text"></p>
+  </div>
+
+  <ol class="timeline" id="timeline" aria-label="Frise chronologique"></ol>
+
+  <div class="end" id="end" hidden>
+    <h2 id="end-title"></h2>
+    <p id="end-sub"></p>
+    <div class="squares" id="end-squares"></div>
+    <div class="row">
+      <button class="btn primary" id="share">Partager mon résultat</button>
+      <button class="btn" id="again">Partie libre</button>
+    </div>
+  </div>
+
+  <footer>Le principe est emprunté au jeu de société <i>Timeline</i> de Frédéric Henry. Les dates retenues sont celles des manuels ; pour quelques événements anciens, c'est la date traditionnelle.</footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const ROUND = 8; // 1 carte de départ + 7 à placer
+
+  // [année, événement] — années négatives = avant J.-C.
+  const EVENTS = [
+    [-776, 'Premiers Jeux olympiques antiques (selon la tradition)'],
+    [-753, 'Fondation de Rome (selon la légende)'],
+    [-323, 'Mort d\'Alexandre le Grand'],
+    [-221, 'Qin Shi Huang unifie la Chine'],
+    [-52, 'Vercingétorix se rend à César à Alésia'],
+    [-44, 'Assassinat de Jules César'],
+    [79, 'Le Vésuve ensevelit Pompéi'],
+    [476, 'Chute de l\'Empire romain d\'Occident'],
+    [622, 'L\'Hégire : Mahomet quitte La Mecque pour Médine'],
+    [800, 'Charlemagne est couronné empereur'],
+    [1066, 'Bataille d\'Hastings'],
+    [1095, 'Urbain II appelle à la première croisade'],
+    [1163, 'Début de la construction de Notre-Dame de Paris'],
+    [1215, 'Signature de la Magna Carta en Angleterre'],
+    [1270, 'Mort de Saint Louis devant Tunis'],
+    [1337, 'Début de la guerre de Cent Ans'],
+    [1347, 'La peste noire atteint l\'Europe'],
+    [1429, 'Jeanne d\'Arc délivre Orléans'],
+    [1453, 'Prise de Constantinople par les Ottomans'],
+    [1492, 'Christophe Colomb atteint l\'Amérique'],
+    [1515, 'Bataille de Marignan'],
+    [1517, 'Luther publie ses 95 thèses'],
+    [1519, 'Mort de Léonard de Vinci à Amboise'],
+    [1522, 'Retour du premier tour du monde (expédition Magellan)'],
+    [1539, 'Ordonnance de Villers-Cotterêts : le français devient langue officielle'],
+    [1543, 'Copernic publie sa théorie héliocentrique'],
+    [1572, 'Massacre de la Saint-Barthélemy'],
+    [1598, 'Édit de Nantes'],
+    [1610, 'Assassinat d\'Henri IV par Ravaillac'],
+    [1633, 'Procès de Galilée'],
+    [1642, 'Pascal invente sa machine à calculer'],
+    [1661, 'Début du règne personnel de Louis XIV'],
+    [1666, 'Grand incendie de Londres'],
+    [1682, 'La cour s\'installe à Versailles'],
+    [1687, 'Newton publie les lois de la gravitation'],
+    [1751, 'Parution du premier volume de l\'Encyclopédie'],
+    [1755, 'Tremblement de terre de Lisbonne'],
+    [1769, 'James Watt brevette sa machine à vapeur'],
+    [1776, 'Déclaration d\'indépendance des États-Unis'],
+    [1783, 'Premier vol humain en montgolfière'],
+    [1789, 'Prise de la Bastille'],
+    [1793, 'Exécution de Louis XVI'],
+    [1799, 'Coup d\'État du 18 Brumaire de Bonaparte'],
+    [1804, 'Sacre de Napoléon Ier'],
+    [1815, 'Bataille de Waterloo'],
+    [1830, 'Les Trois Glorieuses à Paris'],
+    [1848, 'Abolition de l\'esclavage dans les colonies françaises'],
+    [1859, 'Darwin publie « De l\'origine des espèces »'],
+    [1863, 'Premier métro du monde, à Londres'],
+    [1869, 'Inauguration du canal de Suez'],
+    [1871, 'La Commune de Paris'],
+    [1876, 'Graham Bell brevette le téléphone'],
+    [1877, 'Edison invente le phonographe'],
+    [1885, 'Pasteur vaccine un enfant contre la rage'],
+    [1886, 'Carl Benz brevette son automobile'],
+    [1889, 'Inauguration de la tour Eiffel'],
+    [1895, 'Première projection publique des frères Lumière'],
+    [1896, 'Premiers Jeux olympiques modernes, à Athènes'],
+    [1898, 'Zola publie « J\'accuse… ! »'],
+    [1900, 'Ouverture de la première ligne du métro de Paris'],
+    [1903, 'Premier vol motorisé des frères Wright'],
+    [1905, 'Loi de séparation des Églises et de l\'État'],
+    [1909, 'Blériot traverse la Manche en avion'],
+    [1911, 'Amundsen atteint le pôle Sud'],
+    [1912, 'Naufrage du Titanic'],
+    [1914, 'Début de la Première Guerre mondiale'],
+    [1917, 'Révolution russe'],
+    [1918, 'Armistice du 11 novembre'],
+    [1927, 'Lindbergh traverse l\'Atlantique en solitaire'],
+    [1928, 'Fleming découvre la pénicilline'],
+    [1929, 'Krach de Wall Street'],
+    [1936, 'Premiers congés payés en France'],
+    [1939, 'Début de la Seconde Guerre mondiale'],
+    [1944, 'Débarquement en Normandie'],
+    [1945, 'Bombardement d\'Hiroshima'],
+    [1953, 'Découverte de la structure en double hélice de l\'ADN'],
+    [1955, 'Rosa Parks refuse de céder sa place dans un bus'],
+    [1957, 'Lancement de Spoutnik, premier satellite artificiel'],
+    [1958, 'Naissance de la Ve République'],
+    [1961, 'Youri Gagarine, premier humain dans l\'espace'],
+    [1962, 'Indépendance de l\'Algérie'],
+    [1963, 'Assassinat de John F. Kennedy'],
+    [1968, 'Mai 68'],
+    [1969, 'Premiers pas sur la Lune'],
+    [1981, 'Abolition de la peine de mort en France'],
+    [1986, 'Catastrophe de Tchernobyl'],
+    [1989, 'Chute du mur de Berlin'],
+    [1990, 'Nelson Mandela est libéré'],
+    [1991, 'Le World Wide Web s\'ouvre au public'],
+    [1994, 'Inauguration du tunnel sous la Manche'],
+    [1998, 'La France championne du monde de football'],
+    [2001, 'Attentats du 11 septembre aux États-Unis'],
+    [2002, 'L\'euro arrive dans les porte-monnaie'],
+    [2008, 'Faillite de la banque Lehman Brothers'],
+    [2015, 'Accord de Paris sur le climat'],
+    [2019, 'Incendie de Notre-Dame de Paris'],
+    [2020, 'Premier confinement lié au Covid-19 en France'],
+  ];
+
+  // ---------- Hasard reproductible ----------
+  function mulberry32(a) {
+    return () => {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash(str) {
+    let h = 2166136261;
+    for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    return h >>> 0;
+  }
+  // Tirage de ROUND événements d'années toutes différentes
+  function draw(seed) {
+    const rnd = mulberry32(seed);
+    const pool = EVENTS.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const years = new Set(), out = [];
+    for (const e of pool) {
+      if (years.has(e[0])) continue;
+      years.add(e[0]);
+      out.push({ year: e[0], text: e[1] });
+      if (out.length === ROUND) break;
+    }
+    return out;
+  }
+
+  const fmtYear = (y) => (y < 0 ? `${-y} av. J.-C.` : String(y));
+  const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const dayKey = 'cb-frise-' + today();
+
+  // ---------- Partie ----------
+  let game;
+
+  function newGame(mode) {
+    const seed = mode === 'day' ? hash('frise:' + today()) : (Math.random() * 2 ** 32) >>> 0;
+    const deck = draw(seed);
+    game = { mode, deck, line: [{ ...deck[0], state: '' }], next: 1, results: [], answers: [] };
+    $('mode-day').setAttribute('aria-pressed', mode === 'day');
+    $('mode-free').setAttribute('aria-pressed', mode === 'free');
+    // La partie du jour déjà jouée est rejouée telle quelle à partir des réponses mémorisées
+    if (mode === 'day') {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(dayKey) || 'null'); } catch { saved = null; }
+      if (Array.isArray(saved)) for (const pos of saved) if (game.next < ROUND) place(pos, true);
+    }
+    render();
+  }
+
+  // Une position est juste si l'année tombe entre ses deux voisines
+  function isRight(line, pos, year) {
+    const before = line[pos - 1], after = line[pos];
+    return (!before || before.year < year) && (!after || year < after.year);
+  }
+
+  function place(pos, silent) {
+    const card = game.deck[game.next];
+    const ok = isRight(game.line, pos, card.year);
+    const at = ok ? pos : game.line.findIndex((c) => c.year > card.year);
+    game.line.forEach((c) => { c.fresh = false; });
+    game.line.splice(at === -1 ? game.line.length : at, 0, { ...card, state: ok ? 'ok' : 'ko', fresh: !silent });
+    game.results.push(ok);
+    game.next++;
+    if (game.mode === 'day') {
+      // On mémorise les positions choisies dans l'ordre de jeu
+      game.answers.push(pos);
+      try { localStorage.setItem(dayKey, JSON.stringify(game.answers)); } catch { /* stockage indisponible */ }
+    }
+  }
+
+  function render() {
+    const done = game.next >= ROUND;
+    const good = game.results.filter(Boolean).length;
+    $('score').textContent = `${good} / ${game.results.length} · ${Math.min(game.next, ROUND) - 1} sur ${ROUND - 1} placés`;
+    $('current').hidden = done;
+    if (!done) $('current-text').textContent = game.deck[game.next].text;
+
+    const ol = $('timeline');
+    ol.replaceChildren();
+    const slot = (pos) => {
+      const li = document.createElement('li');
+      if (done) { li.className = 'gap'; return li; }
+      const b = document.createElement('button');
+      b.className = 'slot';
+      b.textContent = pos === 0 ? '↑ Placer avant' : pos === game.line.length ? '↓ Placer après' : '↕ Placer ici';
+      b.addEventListener('click', () => { place(pos); render(); });
+      li.append(b);
+      return li;
+    };
+    game.line.forEach((c, i) => {
+      ol.append(slot(i));
+      const li = document.createElement('li');
+      li.className = ['card', c.state, c.fresh ? 'fresh' : ''].join(' ').trim();
+      const y = document.createElement('span');
+      y.className = 'year';
+      y.textContent = fmtYear(c.year);
+      const t = document.createElement('span');
+      t.className = 'txt';
+      t.textContent = c.text;
+      li.append(y, t);
+      ol.append(li);
+    });
+    ol.append(slot(game.line.length));
+
+    $('end').hidden = !done;
+    if (done) {
+      const verdicts = ['Aïe, l\'histoire s\'est emmêlée.', 'Il y a de l\'idée.', 'Pas mal du tout !', 'Belle frise !', 'Historien confirmé 🏛️'];
+      $('end-title').textContent = `${good} / ${ROUND - 1}`;
+      $('end-sub').textContent = verdicts[good === ROUND - 1 ? 4 : good >= 5 ? 3 : good >= 3 ? 2 : good >= 1 ? 1 : 0]
+        + (game.mode === 'day' ? ' Nouvelle frise demain.' : '');
+      $('end-squares').textContent = shareSquares();
+    }
+  }
+
+  const shareSquares = () => game.results.map((r) => (r ? '🟩' : '🟥')).join('');
+
+  $('share').addEventListener('click', async () => {
+    const [y, m, d] = today().split('-');
+    const head = game.mode === 'day' ? `Frise du ${d}/${m}/${y}` : 'Frise (partie libre)';
+    const text = `${head} : ${game.results.filter(Boolean).length}/${ROUND - 1}\n${shareSquares()}\n${location.href.split('#')[0]}`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else {
+        await navigator.clipboard.writeText(text);
+        $('share').textContent = 'Copié ✓';
+        setTimeout(() => ($('share').textContent = 'Partager mon résultat'), 1500);
+      }
+    } catch { /* partage annulé */ }
+  });
+
+  $('again').addEventListener('click', () => { newGame('free'); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('mode-day').addEventListener('click', () => newGame('day'));
+  $('mode-free').addEventListener('click', () => newGame('free'));
+
+  // Exposé pour les tests
+  window.frise = { EVENTS, draw, hash, isRight, get game() { return game; }, place: (p) => { place(p); render(); } };
+  newGame('day');
+})();
+</script>
+<script src="../shared/badge.js" data-n="8" defer></script>
+</body>
+</html>

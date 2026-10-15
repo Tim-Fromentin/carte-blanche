@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Les bons comptes — qui doit quoi à qui ?</title>
+<meta name="description" content="Week-end, colocation, resto entre amis : note qui a payé quoi, et obtiens le plus petit nombre de virements pour être quittes. Sans compte, rien n'est envoyé.">
+<style>
+  :root {
+    --bg: #f7f6f1; --card: #ffffff; --text: #23221f; --muted: #75716a; --border: #e5e2d8;
+    --accent: #15803d; --accent-soft: #e5f4ea; --plus: #15803d; --minus: #b91c1c; --field: #fbfaf6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151614; --card: #1e1f1c; --text: #ebe9e3; --muted: #9b978e; --border: #31322e;
+      --accent: #4ade80; --accent-soft: #19301f; --plus: #4ade80; --minus: #f87171; --field: #191a17;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 96px; }
+  h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  .lead { margin: 0 0 24px; color: var(--muted); }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  h2 { margin: 0 0 12px; font-size: 1.05rem; }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], input[type=number], input:not([type]), select {
+    width: 100%; min-width: 0; height: 40px; padding: 0 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--field);
+  }
+  .title-input { font-size: 1.1rem; font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 140px; }
+  .row > .btn { flex: 0 0 auto; }
+  .btn { height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #0b1a10; } }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 12px; border-radius: 999px; background: var(--accent-soft); max-width: 100%; }
+  .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 1rem; line-height: 1; padding: 2px 6px; }
+  label.field { display: block; font-size: .85rem; color: var(--muted); }
+  label.field > input, label.field > select { margin-top: 2px; color: var(--text); }
+  .who { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 12px; font-size: .95rem; }
+  .who label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .msg { color: var(--minus); font-size: .9rem; margin: 8px 0 0; min-height: 1em; }
+  .empty { color: var(--muted); margin: 0; }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+  ul.list li:first-child { border-top: 0; }
+  .grow { flex: 1; min-width: 0; }
+  .grow b, .grow small { display: block; overflow-wrap: anywhere; }
+  .grow small { color: var(--muted); }
+  .amount { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .del { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 1.1rem; padding: 4px 6px; }
+  .plus { color: var(--plus); } .minus { color: var(--minus); }
+  .transfer { font-size: 1.02rem; }
+  .transfer .arrow { color: var(--muted); margin: 0 4px; }
+  .total { color: var(--muted); margin: 0 0 10px; }
+  .done { padding: 12px; border-radius: 10px; background: var(--accent-soft); margin: 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🤝 Les bons comptes</h1>
+  <p class="lead">Note qui a payé quoi pendant le week-end, la coloc ou le resto. Tu obtiens le plus petit nombre de virements pour que tout le monde soit quitte.</p>
+
+  <section>
+    <input id="title" class="title-input" type="text" maxlength="80" placeholder="Nom du groupe (ex. : Week-end à Annecy)" aria-label="Nom du groupe">
+  </section>
+
+  <section>
+    <h2>1. Les participants</h2>
+    <form id="person-form" class="row">
+      <input id="person-name" type="text" maxlength="30" placeholder="Prénom" aria-label="Prénom du participant">
+      <button class="btn" type="submit">Ajouter</button>
+    </form>
+    <div class="chips" id="people"></div>
+    <p class="msg" id="person-msg"></p>
+  </section>
+
+  <section>
+    <h2>2. Les dépenses</h2>
+    <form id="expense-form">
+      <div class="row">
+        <label class="field">Quoi ?<input id="exp-label" type="text" maxlength="60" placeholder="Courses, essence, loyer…"></label>
+        <label class="field">Montant (€)<input id="exp-amount" type="text" inputmode="decimal" placeholder="42,50"></label>
+        <label class="field">Payé par<select id="exp-payer"></select></label>
+      </div>
+      <div class="who" id="exp-who" aria-label="Pour qui ?"></div>
+      <button class="btn primary" type="submit" id="exp-add">Ajouter la dépense</button>
+      <p class="msg" id="exp-msg"></p>
+    </form>
+    <ul class="list" id="expenses"></ul>
+  </section>
+
+  <section>
+    <h2>3. Qui doit quoi à qui</h2>
+    <div id="result"></div>
+  </section>
+
+  <div class="actions">
+    <button class="btn primary" id="share">🔗 Partager ces comptes</button>
+    <button class="btn" id="reset">Nouveau groupe</button>
+  </div>
+
+  <footer>Tout reste dans ton navigateur. Le lien de partage contient les comptes eux-mêmes : aucun serveur ne les voit passer.</footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = 'cb-bons-comptes';
+  const euros = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  const fmt = (cents) => euros.format(cents / 100);
+
+  // Montants stockés en centimes pour éviter les erreurs d'arrondi
+  let state = { titre: '', personnes: [], depenses: [], suivant: 1 };
+
+  // ---------- Lien partageable (JSON → base64url) ----------
+  function encode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decode(text) {
+    const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  }
+
+  function valid(s) {
+    if (!s || typeof s !== 'object' || !Array.isArray(s.personnes) || !Array.isArray(s.depenses)) return false;
+    const ids = new Set(s.personnes.map((p) => p && p.id));
+    return s.personnes.every((p) => p && Number.isInteger(p.id) && typeof p.nom === 'string')
+      && s.depenses.every((d) => d && Number.isInteger(d.montant) && d.montant > 0 && ids.has(d.payeur)
+        && Array.isArray(d.pour) && d.pour.length > 0 && d.pour.every((id) => ids.has(id)));
+  }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* stockage indisponible */ }
+  }
+
+  // ---------- Calcul ----------
+  // "12,5" → 1250 centimes ; null si invalide
+  function parseAmount(text) {
+    const clean = String(text).replace(/\s/g, '').replace(',', '.');
+    if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
+    const cents = Math.round(parseFloat(clean) * 100);
+    return cents > 0 && cents <= 100000000 ? cents : null;
+  }
+
+  // Solde de chacun : ce qu'il a payé moins sa part. Les centimes restants vont aux premiers.
+  function balances(s) {
+    const bal = new Map(s.personnes.map((p) => [p.id, 0]));
+    for (const d of s.depenses) {
+      bal.set(d.payeur, bal.get(d.payeur) + d.montant);
+      const part = Math.floor(d.montant / d.pour.length);
+      let reste = d.montant - part * d.pour.length;
+      for (const id of d.pour) {
+        bal.set(id, bal.get(id) - part - (reste > 0 ? 1 : 0));
+        if (reste > 0) reste--;
+      }
+    }
+    return bal;
+  }
+
+  // On rembourse toujours le plus gros créancier par le plus gros débiteur : au plus n−1 virements
+  function transfers(bal) {
+    const creditors = [], debtors = [];
+    for (const [id, v] of bal) {
+      if (v > 0) creditors.push({ id, v });
+      else if (v < 0) debtors.push({ id, v: -v });
+    }
+    const out = [];
+    while (creditors.length && debtors.length) {
+      creditors.sort((a, b) => b.v - a.v);
+      debtors.sort((a, b) => b.v - a.v);
+      const c = creditors[0], d = debtors[0];
+      const x = Math.min(c.v, d.v);
+      out.push({ de: d.id, a: c.id, montant: x });
+      c.v -= x; d.v -= x;
+      if (!c.v) creditors.shift();
+      if (!d.v) debtors.shift();
+    }
+    return out;
+  }
+
+  // ---------- Affichage ----------
+  const nameOf = (id) => (state.personnes.find((p) => p.id === id) || { nom: '?' }).nom;
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+
+  function renderPeople() {
+    const box = $('people');
+    box.replaceChildren();
+    for (const p of state.personnes) {
+      const chip = el('span', 'chip');
+      chip.append(el('span', '', p.nom));
+      const x = el('button', '', '×');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Retirer ' + p.nom);
+      x.addEventListener('click', () => removePerson(p.id));
+      chip.append(x);
+      box.append(chip);
+    }
+
+    const payer = $('exp-payer');
+    const previous = Number(payer.value);
+    payer.replaceChildren(...state.personnes.map((p) => {
+      const o = el('option', '', p.nom);
+      o.value = p.id;
+      return o;
+    }));
+    if (state.personnes.some((p) => p.id === previous)) payer.value = previous;
+
+    const who = $('exp-who');
+    const checked = new Set([...who.querySelectorAll('input:checked')].map((i) => Number(i.value)));
+    const known = new Set([...who.querySelectorAll('input')].map((i) => Number(i.value)));
+    who.replaceChildren(el('span', '', 'Pour qui ?'));
+    who.firstChild.style.color = 'var(--muted)';
+    for (const p of state.personnes) {
+      const lab = el('label');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.value = p.id;
+      // Les nouveaux participants sont cochés par défaut
+      box.checked = known.has(p.id) ? checked.has(p.id) : true;
+      lab.append(box, document.createTextNode(p.nom));
+      who.append(lab);
+    }
+    $('exp-add').disabled = state.personnes.length < 2;
+  }
+
+  function renderExpenses() {
+    const list = $('expenses');
+    list.replaceChildren();
+    state.depenses.forEach((d, i) => {
+      const li = el('li');
+      const txt = el('div', 'grow');
+      txt.append(el('b', '', d.libelle || 'Dépense'));
+      const tous = d.pour.length === state.personnes.length;
+      txt.append(el('small', '', `${nameOf(d.payeur)} a payé · pour ${tous ? 'tout le monde' : d.pour.map(nameOf).join(', ')}`));
+      const del = el('button', 'del', '🗑');
+      del.setAttribute('aria-label', 'Supprimer cette dépense');
+      del.addEventListener('click', () => { state.depenses.splice(i, 1); update(); });
+      li.append(txt, el('span', 'amount', fmt(d.montant)), del);
+      list.append(li);
+    });
+  }
+
+  function renderResult() {
+    const box = $('result');
+    box.replaceChildren();
+    if (!state.depenses.length) {
+      box.append(el('p', 'empty', state.personnes.length < 2
+        ? 'Ajoute au moins deux participants, puis les dépenses.'
+        : 'Ajoute une première dépense pour voir les soldes.'));
+      return;
+    }
+    const total = state.depenses.reduce((s, d) => s + d.montant, 0);
+    box.append(el('p', 'total', `Total dépensé : ${fmt(total)}`));
+
+    const bal = balances(state);
+    const ul = el('ul', 'list');
+    for (const p of state.personnes) {
+      const v = bal.get(p.id);
+      const li = el('li');
+      li.append(el('span', 'grow', p.nom));
+      li.append(el('span', 'amount ' + (v > 0 ? 'plus' : v < 0 ? 'minus' : ''), (v > 0 ? '+' : '') + fmt(v)));
+      ul.append(li);
+    }
+    box.append(ul);
+
+    const t = transfers(bal);
+    box.append(el('h2', '', t.length ? `Pour être quittes (${t.length} virement${t.length > 1 ? 's' : ''})` : ''));
+    box.lastChild.style.marginTop = '16px';
+    if (!t.length) {
+      box.append(el('p', 'done', 'Tout le monde est quitte 🎉'));
+      return;
+    }
+    const tl = el('ul', 'list');
+    for (const x of t) {
+      const li = el('li', 'transfer');
+      const s = el('span', 'grow');
+      s.append(el('b', '', nameOf(x.de)));
+      s.lastChild.style.display = 'inline';
+      s.append(el('span', 'arrow', '→'));
+      s.append(el('b', '', nameOf(x.a)));
+      s.lastChild.style.display = 'inline';
+      li.append(s, el('span', 'amount', fmt(x.montant)));
+      tl.append(li);
+    }
+    box.append(tl);
+  }
+
+  function update() {
+    renderPeople();
+    renderExpenses();
+    renderResult();
+    save();
+  }
+
+  // ---------- Actions ----------
+  function removePerson(id) {
+    if (state.depenses.some((d) => d.payeur === id || d.pour.includes(id))) {
+      $('person-msg').textContent = `${nameOf(id)} apparaît dans une dépense : supprime-la d'abord.`;
+      return;
+    }
+    state.personnes = state.personnes.filter((p) => p.id !== id);
+    $('person-msg').textContent = '';
+    update();
+  }
+
+  $('person-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nom = $('person-name').value.trim();
+    const msg = $('person-msg');
+    if (!nom) return;
+    if (state.personnes.some((p) => p.nom.toLowerCase() === nom.toLowerCase())) {
+      msg.textContent = `${nom} est déjà dans le groupe.`;
+      return;
+    }
+    if (state.personnes.length >= 30) { msg.textContent = '30 participants maximum.'; return; }
+    msg.textContent = '';
+    state.personnes.push({ id: state.suivant++, nom });
+    $('person-name').value = '';
+    $('person-name').focus();
+    update();
+  });
+
+  $('expense-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const msg = $('exp-msg');
+    const montant = parseAmount($('exp-amount').value);
+    const pour = [...$('exp-who').querySelectorAll('input:checked')].map((i) => Number(i.value));
+    if (state.personnes.length < 2) { msg.textContent = 'Il faut au moins deux participants.'; return; }
+    if (montant === null) { msg.textContent = 'Montant invalide (ex. : 42,50).'; return; }
+    if (!pour.length) { msg.textContent = 'Coche au moins une personne.'; return; }
+    msg.textContent = '';
+    state.depenses.push({ libelle: $('exp-label').value.trim(), montant, payeur: Number($('exp-payer').value), pour });
+    $('exp-label').value = '';
+    $('exp-amount').value = '';
+    $('exp-label').focus();
+    update();
+  });
+
+  $('title').addEventListener('input', () => { state.titre = $('title').value; save(); });
+
+  $('share').addEventListener('click', async () => {
+    history.replaceState(null, '', '#' + encode(state));
+    try {
+      if (navigator.share) await navigator.share({ title: state.titre || 'Les bons comptes', url: location.href });
+      else {
+        await navigator.clipboard.writeText(location.href);
+        $('share').textContent = 'Lien copié ✓';
+        setTimeout(() => ($('share').textContent = '🔗 Partager ces comptes'), 1500);
+      }
+    } catch { /* partage annulé */ }
+  });
+
+  $('reset').addEventListener('click', () => {
+    if ((state.personnes.length || state.depenses.length) && !confirm('Effacer ce groupe et repartir de zéro ?')) return;
+    state = { titre: '', personnes: [], depenses: [], suivant: 1 };
+    history.replaceState(null, '', location.pathname);
+    $('title').value = '';
+    $('exp-who').replaceChildren();
+    update();
+  });
+
+  // ---------- Démarrage : lien partagé, sinon dernier groupe ----------
+  function load() {
+    let loaded = null, local = null;
+    try { if (location.hash.length > 1) loaded = decode(location.hash.slice(1)); } catch { loaded = null; }
+    try { local = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { local = null; }
+    // Le lien partagé remplace le groupe local : on demande avant d'écraser un groupe différent
+    if (valid(loaded) && valid(local) && local.depenses.length && JSON.stringify(local) !== JSON.stringify(loaded)
+      && !confirm('Ouvrir les comptes partagés ? Ton groupe actuel sera remplacé.')) loaded = null;
+    // Le lien a servi : on le retire pour que les modifications suivantes ne soient pas écrasées au rechargement
+    if (location.hash) history.replaceState(null, '', location.pathname);
+    if (!valid(loaded)) loaded = local;
+    if (valid(loaded)) {
+      state = {
+        titre: String(loaded.titre || '').slice(0, 80),
+        personnes: loaded.personnes.map((p) => ({ id: p.id, nom: p.nom.slice(0, 30) })),
+        depenses: loaded.depenses.map((d) => ({ libelle: String(d.libelle || '').slice(0, 60), montant: d.montant, payeur: d.payeur, pour: [...new Set(d.pour)] })),
+        suivant: Math.max(0, ...loaded.personnes.map((p) => p.id)) + 1,
+      };
+    }
+    $('title').value = state.titre;
+    update();
+  }
+
+  // Exposé pour les tests
+  window.bonsComptes = { balances, transfers, parseAmount };
+  load();
+})();
+</script>
+<script src="../shared/badge.js" data-n="7" defer></script>
+</body>
+</html>
