@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Respire — guide de respiration et cohérence cardiaque</title>
+<meta name="description" content="Un cercle qui grandit, un cercle qui rétrécit : suis le rythme. Cohérence cardiaque, respiration carrée, 4-7-8. Gratuit, sans compte, sans pub.">
+<style>
+  :root {
+    --bg: #eef5f3; --card: #ffffff; --text: #1d2b29; --muted: #6f8580; --border: #d6e4e0;
+    --accent: #1f7a6c; --accent-soft: #d7ede8; --glow: rgba(31, 122, 108, .25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1716; --card: #172221; --text: #e3efec; --muted: #8aa29d; --border: #29393a;
+      --accent: #5fd0bd; --accent-soft: #1b3330; --glow: rgba(95, 208, 189, .2);
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 36px 16px 96px; }
+  h1 { margin: 0; font-size: 1.7rem; }
+  .lead { margin: 4px 0 20px; color: var(--muted); }
+  fieldset { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; }
+  legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .choices.small { grid-template-columns: repeat(4, 1fr); }
+  .choice {
+    text-align: left; padding: 10px 12px; border-radius: 12px; cursor: pointer; font: inherit;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .choices.small .choice { text-align: center; }
+  .choice small { display: block; color: var(--muted); font-size: .8rem; }
+  .choice[aria-pressed=true] { border: 2px solid var(--accent); background: var(--accent-soft); padding: 9px 11px; }
+  .options { display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 20px; color: var(--muted); }
+  .options label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .btn {
+    height: 44px; padding: 0 20px; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 600;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; font-size: 1.05rem; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #0b1a17; } }
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-top: 10px; }
+  .orb-wrap { position: relative; width: min(78vw, 320px); aspect-ratio: 1; display: grid; place-items: center; }
+  .orb-wrap::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px dashed var(--border); }
+  .orb {
+    width: 100%; aspect-ratio: 1; border-radius: 50%; transform: scale(.4); will-change: transform;
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent));
+    box-shadow: 0 0 60px var(--glow);
+  }
+  .orb-text { position: absolute; text-align: center; pointer-events: none; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.35); }
+  @media (prefers-color-scheme: dark) { .orb-text { color: #0b1a17; text-shadow: none; } }
+  .orb-text b { display: block; font-size: 1.5rem; }
+  .orb-text span { font-size: 2.2rem; font-weight: 300; font-variant-numeric: tabular-nums; }
+  .remaining { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .done { text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px 18px; }
+  .done h2 { margin: 0 0 6px; }
+  .done p { margin: 6px 0; color: var(--muted); }
+  .dots { font-size: 1.4rem; letter-spacing: 6px; margin: 10px 0; }
+  .done .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  details { margin-top: 28px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, footer { color: var(--muted); }
+  footer { font-size: .85rem; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <section id="setup">
+    <h1>🌬️ Respire</h1>
+    <p class="lead">Suis le cercle : il grandit quand tu inspires, rétrécit quand tu expires. Quelques minutes suffisent pour ralentir.</p>
+
+    <fieldset>
+      <legend>Rythme</legend>
+      <div class="choices" id="patterns"></div>
+    </fieldset>
+    <fieldset>
+      <legend>Durée</legend>
+      <div class="choices small" id="durations"></div>
+    </fieldset>
+    <div class="options">
+      <label><input type="checkbox" id="opt-sound"> Son doux</label>
+      <label><input type="checkbox" id="opt-vibrate"> Vibration (mobile)</label>
+    </div>
+    <button class="btn primary" id="start">Commencer</button>
+    <p class="lead" id="today" style="margin-top:14px"></p>
+
+    <details>
+      <summary>D'où viennent ces rythmes ?</summary>
+      <p><b>Cohérence cardiaque</b> : 6 respirations par minute (5 s pour inspirer, 5 s pour expirer). La méthode « 365 », popularisée en France par le médecin David O'Hare, conseille 3 séances de 5 minutes par jour.</p>
+      <p><b>Apaisement</b> : une expiration plus longue que l'inspiration, souvent utilisée pour se détendre.</p>
+      <p><b>Respiration carrée</b> : 4 temps égaux (inspirer, retenir, expirer, retenir).</p>
+      <p><b>4-7-8</b> : technique décrite par le médecin américain Andrew Weil, souvent proposée avant de dormir.</p>
+      <p>Ce n'est pas un dispositif médical. Si tu ressens un vertige ou une gêne, reprends une respiration normale.</p>
+    </details>
+  </section>
+
+  <section class="stage" id="stage" hidden>
+    <div class="orb-wrap">
+      <div class="orb" id="orb"></div>
+      <div class="orb-text"><b id="phase">Inspire</b><span id="sec">5</span></div>
+    </div>
+    <div class="remaining" id="remaining"></div>
+    <button class="btn" id="stop">Arrêter</button>
+  </section>
+
+  <section class="done" id="done" hidden>
+    <h2>Séance terminée 🌿</h2>
+    <p id="done-text"></p>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+    <p id="streak"></p>
+    <div class="row">
+      <button class="btn" id="again">Recommencer</button>
+      <button class="btn" id="back">Changer de rythme</button>
+    </div>
+  </section>
+  <footer>Rien n'est envoyé : ton historique de séances reste sur cet appareil.</footer>
+</main>
+
+<script>
+  const PATTERNS = [
+    { id: 'coherence', name: 'Cohérence cardiaque', info: '5 s · 5 s', phases: [['in', 5], ['out', 5]] },
+    { id: 'calme', name: 'Apaisement', info: '4 s · 6 s', phases: [['in', 4], ['out', 6]] },
+    { id: 'carre', name: 'Respiration carrée', info: '4 · 4 · 4 · 4', phases: [['in', 4], ['hold', 4], ['out', 4], ['hold', 4]] },
+    { id: '478', name: '4-7-8', info: '4 s · 7 s · 8 s', phases: [['in', 4], ['hold', 7], ['out', 8]] },
+  ];
+  const DURATIONS = [1, 3, 5, 10];
+  const LABELS = { in: 'Inspire', out: 'Expire', hold: 'Retiens' };
+  const MIN_SCALE = 0.4;
+  const $ = (id) => document.getElementById(id);
+
+  const cycleLength = (p) => p.phases.reduce((s, [, d]) => s + d, 0);
+  // Nombre de cycles complets le plus proche de la durée voulue (au moins 1)
+  const cyclesFor = (p, minutes) => Math.max(1, Math.round((minutes * 60) / cycleLength(p)));
+
+  // Phase en cours à l'instant t (secondes depuis le début)
+  function phaseAt(p, t) {
+    const len = cycleLength(p);
+    let inCycle = ((t % len) + len) % len;
+    for (let i = 0; i < p.phases.length; i++) {
+      const [kind, d] = p.phases[i];
+      if (inCycle < d) return { index: i, kind, elapsed: inCycle, duration: d, cycle: Math.floor(t / len) };
+      inCycle -= d;
+    }
+    return { index: 0, kind: p.phases[0][0], elapsed: 0, duration: p.phases[0][1], cycle: Math.floor(t / len) };
+  }
+
+  // Taille du cercle : suit l'inspiration et l'expiration, reste figé pendant les rétentions
+  function scaleAt(p, t) {
+    const ph = phaseAt(p, t);
+    const ease = (x) => (1 - Math.cos(Math.PI * x)) / 2;
+    const k = ease(ph.elapsed / ph.duration);
+    if (ph.kind === 'in') return MIN_SCALE + (1 - MIN_SCALE) * k;
+    if (ph.kind === 'out') return 1 - (1 - MIN_SCALE) * k;
+    const prev = p.phases[(ph.index - 1 + p.phases.length) % p.phases.length][0];
+    return prev === 'in' ? 1 : MIN_SCALE;
+  }
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  // Réglages et historique, gardés sur l'appareil
+  const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
+  const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* stockage indisponible */ } };
+  const settings = Object.assign({ pattern: 'coherence', minutes: 5, sound: false, vibrate: false }, load('respire-settings', {}));
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+  function streakOf(log, from) {
+    const days = new Set(log);
+    const d = new Date(from + 'T12:00:00');
+    if (!days.has(from)) d.setDate(d.getDate() - 1);
+    let n = 0;
+    while (days.has(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)) {
+      n++; d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+
+  function choiceButton(label, info, pressed, onClick) {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.textContent = label;
+    if (info) { const s = document.createElement('small'); s.textContent = info; b.append(s); }
+    b.setAttribute('aria-pressed', pressed);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function renderSetup() {
+    $('patterns').replaceChildren(...PATTERNS.map((p) => choiceButton(p.name, p.info, p.id === settings.pattern, () => { settings.pattern = p.id; save('respire-settings', settings); renderSetup(); })));
+    $('durations').replaceChildren(...DURATIONS.map((m) => choiceButton(`${m} min`, '', m === settings.minutes, () => { settings.minutes = m; save('respire-settings', settings); renderSetup(); })));
+    $('opt-sound').checked = settings.sound;
+    $('opt-vibrate').checked = settings.vibrate;
+    const n = load('respire-log', []).filter((d) => d === today()).length;
+    $('today').textContent = n ? `Aujourd'hui : ${n} séance${n > 1 ? 's' : ''} terminée${n > 1 ? 's' : ''}.` : '';
+  }
+
+  // Son : une note douce qui monte à l'inspiration et descend à l'expiration
+  let audio = null;
+  function tone(kind, seconds) {
+    if (!settings.sound || kind === 'hold') return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const now = audio.currentTime;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(kind === 'in' ? 196 : 294, now);
+      osc.frequency.linearRampToValueAtTime(kind === 'in' ? 294 : 196, now + seconds);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.6);
+      gain.gain.setValueAtTime(0.08, now + Math.max(0.7, seconds - 0.8));
+      gain.gain.linearRampToValueAtTime(0, now + seconds);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(now);
+      osc.stop(now + seconds + 0.05);
+    } catch { /* audio indisponible */ }
+  }
+
+  let session = null;
+  let wakeLock = null;
+
+  async function start() {
+    const p = PATTERNS.find((x) => x.id === settings.pattern) || PATTERNS[0];
+    session = { p, total: cyclesFor(p, settings.minutes) * cycleLength(p), t0: performance.now(), lastKey: null };
+    $('setup').hidden = true; $('done').hidden = true; $('stage').hidden = false;
+    if (settings.sound) { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch { audio = null; } }
+    const s = session;
+    // L'animation suit l'écran ; l'horloge de secours garde le son et la fin de séance quand l'onglet est masqué
+    const frame = (now) => { if (session === s && step(now)) requestAnimationFrame(frame); };
+    s.timer = setInterval(() => { if (session !== s || !step(performance.now())) clearInterval(s.timer); }, 250);
+    requestAnimationFrame(frame);
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { wakeLock = null; }
+    if (session !== s) release();
+  }
+
+  function step(now) {
+    if (!session) return false;
+    const t = (now - session.t0) / 1000;
+    if (t >= session.total) { finish(); return false; }
+    const { p } = session;
+    const ph = phaseAt(p, t);
+    $('orb').style.transform = `scale(${scaleAt(p, t).toFixed(4)})`;
+    const key = ph.cycle + ':' + ph.index;
+    if (key !== session.lastKey) {
+      session.lastKey = key;
+      $('phase').textContent = LABELS[ph.kind];
+      tone(ph.kind, ph.duration);
+      if (settings.vibrate && navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate(ph.kind === 'hold' ? 30 : 60);
+    }
+    $('sec').textContent = Math.ceil(ph.duration - ph.elapsed);
+    $('remaining').textContent = `Reste ${fmt(Math.ceil(session.total - t))}`;
+    return true;
+  }
+
+  function release() {
+    try { wakeLock?.release(); } catch { /* déjà libéré */ }
+    wakeLock = null;
+  }
+
+  function finish() {
+    const s = session;
+    session = null;
+    release();
+    const log = load('respire-log', []);
+    log.push(today());
+    save('respire-log', log.slice(-400));
+    const n = log.filter((d) => d === today()).length;
+    $('stage').hidden = true; $('done').hidden = false;
+    $('done-text').textContent = `${fmt(s.total)} de ${s.p.name.toLowerCase()}. ${n >= 3 ? 'Tes trois séances du jour sont faites.' : `Séance ${n} sur les 3 conseillées aujourd'hui.`}`;
+    $('dots').textContent = Array.from({ length: Math.max(3, n) }, (_, i) => (i < n ? '●' : '○')).join('');
+    const streak = streakOf(log, today());
+    $('streak').textContent = streak > 1 ? `${streak} jours d'affilée.` : '';
+  }
+
+  function stop() {
+    session = null;
+    release();
+    $('stage').hidden = true; $('setup').hidden = false;
+    renderSetup();
+  }
+
+  $('start').addEventListener('click', start);
+  $('stop').addEventListener('click', stop);
+  $('again').addEventListener('click', start);
+  $('back').addEventListener('click', stop);
+  $('opt-sound').addEventListener('change', (e) => { settings.sound = e.target.checked; save('respire-settings', settings); });
+  $('opt-vibrate').addEventListener('change', (e) => { settings.vibrate = e.target.checked; save('respire-settings', settings); });
+  document.addEventListener('visibilitychange', async () => {
+    if (session && document.visibilityState === 'visible' && (!wakeLock || wakeLock.released)) {
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { wakeLock = null; }
+    }
+  });
+
+  renderSetup();
+</script>
+<script src="../shared/badge.js" data-n="10" defer></script>
+</body>
+</html>

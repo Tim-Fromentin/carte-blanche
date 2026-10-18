@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L'Oracle — es-tu vraiment imprévisible ?</title>
+<meta name="description" content="Appuie au hasard sur gauche ou droite. L'Oracle essaie de deviner ton prochain choix. Spoiler : il y arrive bien plus d'une fois sur deux.">
+<style>
+  :root {
+    --bg: #f4f3fa; --card: #ffffff; --text: #23213a; --muted: #77748f; --border: #e1def0;
+    --accent: #5b3fd6; --accent-soft: #ece8fd; --oracle: #b4233c; --you: #1f8a5b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13121c; --card: #1d1b2a; --text: #ebe9f7; --muted: #9c98b8; --border: #322f47;
+      --accent: #a594ff; --accent-soft: #2a2545; --oracle: #f2738a; --you: #4fd29a;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 36px 16px 96px; }
+  h1 { margin: 0; font-size: 1.7rem; }
+  .lead { margin: 4px 0 18px; color: var(--muted); }
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .stats b { display: block; font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+  .stats span { color: var(--muted); font-size: .82rem; }
+  #pct { color: var(--accent); }
+  .progress { height: 6px; border-radius: 3px; background: var(--accent-soft); margin: 16px 0 12px; overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .ribbon { display: flex; flex-wrap: wrap; gap: 3px; min-height: 14px; }
+  .ribbon i { width: 11px; height: 11px; border-radius: 3px; background: var(--you); }
+  .ribbon i.hit { background: var(--oracle); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: .8rem; margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--you); }
+  .legend i.hit { background: var(--oracle); }
+  .seal { text-align: center; color: var(--muted); font-size: .88rem; margin: 18px 0 10px; min-height: 1.3em; }
+  .seal b { color: var(--text); }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .key {
+    height: 110px; border-radius: 16px; cursor: pointer; font: inherit; font-size: 1.3rem; font-weight: 700;
+    border: 2px solid var(--accent); background: var(--accent-soft); color: var(--text);
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  .key small { display: block; font-size: .8rem; font-weight: 500; color: var(--muted); margin-top: 4px; }
+  .key:active, .key.flash { transform: scale(.97); background: var(--accent); color: #fff; }
+  .key.flash small, .key:active small { color: inherit; }
+  @media (prefers-color-scheme: dark) { .key:active, .key.flash { color: #120f24; } }
+  .btn {
+    height: 38px; padding: 0 14px; border-radius: 9px; cursor: pointer; font: inherit; font-size: .92rem;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #120f24; } }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+  canvas { display: block; width: 100%; height: 150px; margin-top: 14px; }
+  .end { margin-top: 18px; text-align: center; }
+  .end h2 { margin: 0 0 6px; font-size: 1.35rem; }
+  .end p { margin: 6px 0; }
+  .facts { text-align: left; margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .facts li { padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: .93rem; }
+  .coin { margin-top: 12px; color: var(--muted); font-size: .92rem; min-height: 1.3em; }
+  details { margin-top: 26px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { color: var(--muted); }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 28px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🔮 L'Oracle</h1>
+  <p class="lead">Appuie 100 fois sur gauche ou droite, le plus au hasard possible. Avant chaque appui, l'Oracle a déjà fait sa prédiction. Un vrai hasard le limiterait à 50 %.</p>
+
+  <section class="panel">
+    <div class="stats">
+      <div><b id="count">0</b><span>appuis sur 100</span></div>
+      <div><b id="hits">0</b><span>devinés par l'Oracle</span></div>
+      <div><b id="pct">–</b><span>de réussite</span></div>
+    </div>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="ribbon" id="ribbon" aria-hidden="true"></div>
+    <div class="legend"><span><i class="hit"></i>l'Oracle avait deviné</span><span><i></i>tu l'as eu</span></div>
+  </section>
+
+  <p class="seal" id="seal">Sa prédiction est déjà écrite. À toi.</p>
+
+  <div class="keys" id="keys">
+    <button class="key" data-b="0">◀ Gauche<small>touche F ou ←</small></button>
+    <button class="key" data-b="1">Droite ▶<small>touche J ou →</small></button>
+  </div>
+
+  <section class="panel end" id="end" hidden>
+    <h2 id="verdict"></h2>
+    <p id="verdict-sub"></p>
+    <canvas id="chart" aria-label="Évolution du taux de réussite de l'Oracle"></canvas>
+    <ul class="facts" id="facts"></ul>
+    <div class="row">
+      <button class="btn primary" id="share">Partager mon résultat</button>
+      <button class="btn" id="again">Rejouer</button>
+      <button class="btn" id="coin-btn">Faire jouer une vraie pièce</button>
+    </div>
+    <p class="coin" id="coin"></p>
+  </section>
+
+  <details>
+    <summary>Comment l'Oracle devine-t-il ?</summary>
+    <p>Il ne lit rien d'autre que tes appuis précédents, et il ne triche pas : sa prédiction est calculée avant que tu appuies. Il mémorise ce que tu as fait après chaque suite de 5 choix (par exemple « gauche, gauche, droite, gauche, droite »). Quand la même suite revient, il parie que tu vas refaire la même chose. S'il ne sait pas, il essaie avec une suite plus courte, et en dernier recours il tire au sort.</p>
+    <p>Les humains qui veulent « faire du hasard » changent trop souvent de côté et évitent les longues séries. C'est justement ce qui les rend prévisibles.</p>
+    <p>L'idée vient d'une expérience décrite par l'informaticien Scott Aaronson.</p>
+  </details>
+  <footer>Rien n'est envoyé : tout se calcule dans ton navigateur. Seul ton meilleur score est gardé sur cet appareil.</footer>
+</main>
+
+<script>
+  const ROUNDS = 100;
+  const ORDER = 5;
+  const $ = (id) => document.getElementById(id);
+
+  // L'Oracle : compte ce qui a suivi chaque contexte (de 0 à ORDER choix précédents)
+  function createOracle(random = Math.random) {
+    const counts = new Map();
+    const history = [];
+    const keyOf = (k) => k + ':' + history.slice(history.length - k).join('');
+    const predict = () => {
+      for (let k = Math.min(ORDER, history.length); k >= 0; k--) {
+        const c = counts.get(keyOf(k));
+        if (c && c[0] !== c[1]) return c[0] > c[1] ? 0 : 1;
+      }
+      return random() < 0.5 ? 0 : 1;
+    };
+    let guess = predict();
+    return {
+      history,
+      play(choice) {
+        const hit = guess === choice;
+        for (let k = Math.min(ORDER, history.length); k >= 0; k--) {
+          const key = keyOf(k);
+          const c = counts.get(key) || [0, 0];
+          c[choice]++;
+          counts.set(key, c);
+        }
+        history.push(choice);
+        guess = predict();
+        return hit;
+      },
+    };
+  }
+
+  // Statistiques sur une suite de choix
+  function analyse(seq) {
+    let switches = 0, longest = seq.length ? 1 : 0, run = 1;
+    for (let i = 1; i < seq.length; i++) {
+      if (seq[i] !== seq[i - 1]) { switches++; run = 1; } else { run++; longest = Math.max(longest, run); }
+    }
+    const right = seq.filter((b) => b === 1).length;
+    return { switches: seq.length > 1 ? switches / (seq.length - 1) : 0, longest, right };
+  }
+
+  const percent = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+
+  let oracle, results;
+
+  function reset() {
+    oracle = createOracle();
+    results = [];
+    $('ribbon').replaceChildren();
+    $('end').hidden = true;
+    $('keys').hidden = false;
+    $('coin').textContent = '';
+    $('seal').hidden = false;
+    $('seal').textContent = "Sa prédiction est déjà écrite. À toi.";
+    render();
+  }
+
+  function render() {
+    const hits = results.filter(Boolean).length;
+    $('count').textContent = results.length;
+    $('hits').textContent = hits;
+    $('pct').textContent = results.length ? percent(hits, results.length) + ' %' : '–';
+    $('bar').style.width = (100 * results.length) / ROUNDS + '%';
+  }
+
+  function press(choice) {
+    if (results.length >= ROUNDS) return;
+    const hit = oracle.play(choice);
+    results.push(hit);
+    const cell = document.createElement('i');
+    if (hit) cell.className = 'hit';
+    $('ribbon').append(cell);
+    $('seal').textContent = hit ? "L'Oracle l'avait vu venir." : 'Raté pour lui.';
+    render();
+    if (results.length === ROUNDS) finish();
+  }
+
+  function verdictFor(p) {
+    if (p >= 65) return ["L'Oracle te lit comme un livre", 'Ton « hasard » suit des habitudes très régulières.'];
+    if (p >= 56) return ['Assez prévisible', "Tu fais mieux que la plupart, mais l'Oracle a trouvé des motifs."];
+    if (p >= 45) return ['Impressionnant : tu es (presque) un vrai hasard', "L'Oracle n'a pas fait beaucoup mieux qu'un pile ou face."];
+    return ["Tu as retourné l'Oracle", "Tu as compris comment il pense et tu le contres. Bravo, mais ce n'est plus du hasard : c'est une stratégie."];
+  }
+
+  function finish() {
+    const hits = results.filter(Boolean).length;
+    const p = percent(hits, ROUNDS);
+    const [title, sub] = verdictFor(p);
+    $('keys').hidden = true;
+    $('seal').hidden = true;
+    $('end').hidden = false;
+    $('verdict').textContent = `${p} % : ${title}`;
+    let best = null;
+    try { best = JSON.parse(localStorage.getItem('oracle-best')); } catch { best = null; }
+    const isBest = typeof best !== 'number' || p < best;
+    if (isBest) { try { localStorage.setItem('oracle-best', JSON.stringify(p)); } catch { /* stockage indisponible */ } }
+    $('verdict-sub').textContent = sub + (typeof best === 'number' ? (isBest ? ` Nouveau record : jamais l'Oracle ne t'avait si peu deviné (avant : ${best} %).` : ` Ton record (le plus bas) : ${best} %.`) : '');
+
+    const a = analyse(oracle.history);
+    const facts = [
+      `Tu as changé de côté ${Math.round(a.switches * 100)} % du temps. Un vrai hasard change environ 50 % du temps.`,
+      `Ta plus longue série du même côté : ${a.longest}. Sur 100 tirages à pile ou face, la plus longue série est le plus souvent de 6 ou 7.`,
+      `Tu as choisi droite ${a.right} fois et gauche ${ROUNDS - a.right} fois.`,
+    ];
+    $('facts').replaceChildren(...facts.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+    drawChart();
+    $('end').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function drawChart() {
+    const canvas = $('chart');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const css = getComputedStyle(document.documentElement);
+    const pad = 22;
+    const y = (v) => h - pad - (v / 100) * (h - 2 * pad);
+    const x = (i) => pad + (i / (ROUNDS - 1)) * (w - 2 * pad);
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = css.getPropertyValue('--muted');
+    ctx.strokeStyle = css.getPropertyValue('--muted');
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad, y(50)); ctx.lineTo(w - pad, y(50)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillText('50 % : un vrai hasard', pad + 4, y(50) - 5);
+    ctx.strokeStyle = css.getPropertyValue('--accent');
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    let hits = 0;
+    results.forEach((r, i) => {
+      if (r) hits++;
+      const v = (100 * hits) / (i + 1);
+      i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v));
+    });
+    ctx.stroke();
+  }
+
+  // Le même Oracle face à une pièce tirée par la cryptographie du navigateur
+  function coinRun() {
+    const rand = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+    const o = createOracle(rand);
+    let hits = 0;
+    for (let i = 0; i < ROUNDS; i++) if (o.play(rand() < 0.5 ? 0 : 1)) hits++;
+    return hits;
+  }
+
+  document.querySelectorAll('.key').forEach((btn) => {
+    btn.addEventListener('click', () => press(Number(btn.dataset.b)));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || !$('end').hidden) return;
+    const key = e.key.toLowerCase();
+    const choice = key === 'f' || key === 'arrowleft' ? 0 : key === 'j' || key === 'arrowright' ? 1 : null;
+    if (choice === null) return;
+    e.preventDefault();
+    const btn = document.querySelector(`.key[data-b="${choice}"]`);
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 90);
+    press(choice);
+  });
+  $('again').addEventListener('click', () => { reset(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  $('coin-btn').addEventListener('click', () => {
+    const h = coinRun();
+    $('coin').textContent = `Une vraie pièce, 100 lancers : l'Oracle en a deviné ${h}, soit ${h} %. Relance pour voir : ça tourne toujours autour de 50.`;
+  });
+  $('share').addEventListener('click', async () => {
+    const p = percent(results.filter(Boolean).length, ROUNDS);
+    const text = `🔮 L'Oracle a deviné ${p} % de mes 100 choix « au hasard ». Et toi, tu es prévisible ?\n${location.href.split('#')[0]}`;
+    try {
+      if (navigator.share) await navigator.share({ text });
+      else {
+        await navigator.clipboard.writeText(text);
+        $('share').textContent = 'Copié ✓';
+        setTimeout(() => ($('share').textContent = 'Partager mon résultat'), 1500);
+      }
+    } catch { /* partage annulé */ }
+  });
+  window.addEventListener('resize', () => { if (!$('end').hidden) drawChart(); });
+
+  reset();
+</script>
+<script src="../shared/badge.js" data-n="9" defer></script>
+</body>
+</html>
